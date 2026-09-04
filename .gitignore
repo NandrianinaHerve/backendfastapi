@@ -1,0 +1,137 @@
+# ============================
+# PYTHON
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pythonenv*
+
+# ============================
+# DISTRIBUTION / PACKAGING
+# ============================
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ============================
+# TESTS & COVERAGE
+# ============================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+*.log
+
+# ============================
+# JUPYTER NOTEBOOKS
+# ============================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================
+# ENVIRONMENT VARIABLES
+# ============================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ============================
+# DATABASES (LOCAL)
+# ============================
+*.db
+*.sqlite
+*.sqlite3
+*.pgsql
+data/
+*.dump
+
+# ============================
+# ML MODELS (souvent volumineux)
+# ============================
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.pb
+*.onnx
+*.pt
+*.pth
+*.ckpt
+models/
+!models/README.md  # <- Garde ce fichier pour expliquer où trouver les modèles
+
+# ============================
+# DATA FILES (volumineux)
+# ============================
+*.csv
+*.xlsx
+*.parquet
+*.feather
+*.arrow
+data/raw/
+data/processed/
+!data/README.md
+
+# ============================
+# FASTAPI / UVICORN
+# ============================
+*.pid
+uvicorn.*
+
+# ============================
+# DOCKER
+# ============================
+*.pid
+docker-compose.override.yml
+.dockerignore
+
+# ============================
+# POSTGIS / POSTGRES (local)
+# ============================
+*.pgdata/
+postgres_data/
+pg_hba.conf
+postgresql.conf
+
+# ============================
+# EDITORS & OS
+# ============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.tmp
+
+# ============================
+# LOGS & TEMP
+# ============================
+logs/
+*.log
+temp/
+tmp/
