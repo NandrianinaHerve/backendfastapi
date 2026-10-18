@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
-
+from typing import Optional, List, Dict
 class SymptomeInput(BaseModel):
     symptomes: str
     patient_id: int
@@ -31,3 +30,24 @@ class DocteurRecommande(BaseModel):
 class IaRecommendationResponse(BaseModel):
     consultation: IaConsultationResponse
     docteurs_recommandes: List[DocteurRecommande]
+
+
+
+class MLTrainingData(BaseModel):
+    """Données pour l'entraînement du modèle ML"""
+    symptomes: str
+    specialite: str
+
+class MLStatsResponse(BaseModel):
+    """Statistiques du modèle ML"""
+    model_type: str
+    n_classes: int
+    classes: List[str]
+    n_features: int
+    is_trained: bool
+
+class IaRecommendationResponse(BaseModel):
+    """Réponse avec recommandation IA"""
+    consultation: IaConsultationResponse
+    docteurs_recommandes: List[DocteurRecommande]
+    ml_details: Optional[Dict] = None

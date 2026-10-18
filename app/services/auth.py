@@ -35,7 +35,7 @@ def update_user_status(db: Session, user_id: int, status: UserStatus, admin_id: 
         return None
     
     user.status = status
-    user.validated_at = datetime.utcnow()
+    user.validated_at = datetime.now()
     user.validated_by = admin_id
     
     db.commit()

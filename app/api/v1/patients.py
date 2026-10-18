@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from geoalchemy2.functions import ST_SetSRID, ST_MakePoint
+from sqlalchemy import func
 
 from ...core.database import get_db
 from ...core.dependencies import require_patient
@@ -49,31 +50,106 @@ def register_patient(
         date_naissance=patient_data.date_naissance
     )
     
-    if patient_data.latitude and patient_data.longitude:
-        patient.localisation = ST_SetSRID(
-            ST_MakePoint(patient_data.longitude, patient_data.latitude),
-            4326
-        )
+    # if patient_data.latitude and patient_data.longitude:
+    #     patient.localisation = ST_SetSRID(
+    #         ST_MakePoint(patient_data.longitude, patient_data.latitude),
+    #         4326
+    #     )
+    if (
+    patient_data.latitude is not None
+    and patient_data.longitude is not None
+      ):
+     patient.localisation = ST_SetSRID(
+        ST_MakePoint(
+            patient_data.longitude,
+            patient_data.latitude
+        ),
+        4326
+    )
     
     db.add(patient)
     db.commit()
     db.refresh(patient)
     return patient
 
+# @router.get("/me", response_model=PatientResponse)
+# def get_my_patient_profile(
+#     current_user: User = Depends(require_patient),
+#     db: Session = Depends(get_db)
+# ):
+#     """Obtenir le profil du patient connecté"""
+#     patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+#     if not patient:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Profil patient non trouvé"
+#         )
+#     return patient
 @router.get("/me", response_model=PatientResponse)
 def get_my_patient_profile(
     current_user: User = Depends(require_patient),
     db: Session = Depends(get_db)
 ):
-    """Obtenir le profil du patient connecté"""
-    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-    if not patient:
+    """Obtenir le profil du patient connecté avec coordonnées GPS"""
+
+    result = (
+        db.query(
+            Patient,
+            func.ST_Y(Patient.localisation).label("latitude"),
+            func.ST_X(Patient.localisation).label("longitude")
+        )
+        .filter(Patient.user_id == current_user.id)
+        .first()
+    )
+
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profil patient non trouvé"
         )
-    return patient
 
+    patient, latitude, longitude = result
+
+    return PatientResponse(
+        id=patient.id,
+        user_id=patient.user_id,
+        date_naissance=patient.date_naissance,
+
+        latitude=float(latitude)
+        if latitude is not None else None,
+
+        longitude=float(longitude)
+        if longitude is not None else None,
+
+        user=patient.user
+    )
+
+# @router.put("/me", response_model=PatientResponse)
+# def update_my_patient_profile(
+#     patient_update: PatientUpdate,
+#     current_user: User = Depends(require_patient),
+#     db: Session = Depends(get_db)
+# ):
+#     """Mettre à jour le profil du patient connecté"""
+#     patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+#     if not patient:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Profil patient non trouvé"
+#         )
+    
+#     if patient_update.date_naissance:
+#         patient.date_naissance = patient_update.date_naissance
+    
+#     if patient_update.latitude is not None and patient_update.longitude is not None:
+#         patient.localisation = ST_SetSRID(
+#             ST_MakePoint(patient_update.longitude, patient_update.latitude),
+#             4326
+#         )
+    
+#     db.commit()
+#     db.refresh(patient)
+#     return patient
 @router.put("/me", response_model=PatientResponse)
 def update_my_patient_profile(
     patient_update: PatientUpdate,
@@ -81,44 +157,134 @@ def update_my_patient_profile(
     db: Session = Depends(get_db)
 ):
     """Mettre à jour le profil du patient connecté"""
-    patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+
+    patient = (
+        db.query(Patient)
+        .filter(Patient.user_id == current_user.id)
+        .first()
+    )
+
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profil patient non trouvé"
         )
-    
-    if patient_update.date_naissance:
+
+    # Date de naissance
+    if patient_update.date_naissance is not None:
         patient.date_naissance = patient_update.date_naissance
-    
-    if patient_update.latitude is not None and patient_update.longitude is not None:
+
+    # Localisation GPS
+    if (
+        patient_update.latitude is not None
+        and patient_update.longitude is not None
+    ):
         patient.localisation = ST_SetSRID(
-            ST_MakePoint(patient_update.longitude, patient_update.latitude),
+            ST_MakePoint(
+                patient_update.longitude,
+                patient_update.latitude
+            ),
             4326
         )
-    
+
     db.commit()
     db.refresh(patient)
-    return patient
 
+    # Récupérer les coordonnées depuis PostGIS
+    coordinates = (
+        db.query(
+            func.ST_Y(Patient.localisation).label("latitude"),
+            func.ST_X(Patient.localisation).label("longitude")
+        )
+        .filter(Patient.id == patient.id)
+        .first()
+    )
+
+    latitude = coordinates.latitude if coordinates else None
+    longitude = coordinates.longitude if coordinates else None
+
+    return PatientResponse(
+        id=patient.id,
+        user_id=patient.user_id,
+        date_naissance=patient.date_naissance,
+
+        latitude=float(latitude)
+        if latitude is not None else None,
+
+        longitude=float(longitude)
+        if longitude is not None else None,
+
+        user=patient.user
+    )
+
+# @router.get("/{patient_id}", response_model=PatientResponse)
+# def get_patient_by_id(
+#     patient_id: int,
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(require_patient)
+# ):
+#     """Obtenir un patient par ID (uniquement si c'est le sien ou admin)"""
+#     patient = db.query(Patient).filter(Patient.id == patient_id).first()
+#     if not patient:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Patient non trouvé"
+#         )
+    
+#     if current_user.role != UserRole.ADMIN and current_user.id != patient.user_id:
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Accès non autorisé"
+#         )
+    
+#     return patient
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient_by_id(
     patient_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_patient)
 ):
-    """Obtenir un patient par ID (uniquement si c'est le sien ou admin)"""
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient:
+    """Obtenir un patient par ID avec coordonnées GPS"""
+
+    result = (
+        db.query(
+            Patient,
+            func.ST_Y(Patient.localisation).label("latitude"),
+            func.ST_X(Patient.localisation).label("longitude")
+        )
+        .filter(Patient.id == patient_id)
+        .first()
+    )
+
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient non trouvé"
         )
-    
-    if current_user.role != UserRole.ADMIN and current_user.id != patient.user_id:
+
+    patient, latitude, longitude = result
+
+    # Le patient peut consulter uniquement son propre profil
+    # ou un administrateur.
+    if (
+        current_user.role != UserRole.ADMIN
+        and current_user.id != patient.user_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Accès non autorisé"
         )
-    
-    return patient
+
+    return PatientResponse(
+        id=patient.id,
+        user_id=patient.user_id,
+        date_naissance=patient.date_naissance,
+
+        latitude=float(latitude)
+        if latitude is not None else None,
+
+        longitude=float(longitude)
+        if longitude is not None else None,
+
+        user=patient.user
+    )

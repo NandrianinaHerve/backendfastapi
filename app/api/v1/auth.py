@@ -76,3 +76,19 @@ def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
 def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Obtenir les informations de l'utilisateur connecté"""
     return current_user
+# ============================================
+# ✅ NOUVEAU : DÉCONNEXION
+# ============================================
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_user)):
+    """
+    Déconnexion de l'utilisateur
+    
+    Note: Le token JWT reste valide jusqu'à expiration.
+    Le client doit supprimer le token de son côté.
+    """
+    return {
+        "message": "Déconnexion réussie",
+        "user_id": current_user.id,
+        "email": current_user.email
+    }

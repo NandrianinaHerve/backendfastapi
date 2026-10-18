@@ -82,6 +82,9 @@ data/
 *.ckpt
 models/
 !models/README.md  # <- Garde ce fichier pour expliquer où trouver les modèles
+!app/models/
+app/models/*
+!app/models/ordonnance.py
 
 # ============================
 # DATA FILES (volumineux)
@@ -106,7 +109,6 @@ uvicorn.*
 # ============================
 *.pid
 docker-compose.override.yml
-.dockerignore
 
 # ============================
 # POSTGIS / POSTGRES (local)

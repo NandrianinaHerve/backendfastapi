@@ -6,7 +6,8 @@ from fastapi.openapi.utils import get_openapi
 from .core.database import engine, Base
 from .api.v1 import (
     auth, administrateur, patients, docteurs, pharmacie, hopitaux, chauffeurs,
-    rendez_vous, disponibilite, localisation, ia, transport
+    rendez_vous, disponibilite, localisation, ia, ia_assistant,transport, notifications,
+    medicaments, commandes,hopital_chambres ,avis, specialites, ordonnances, ordonnance_ia,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,7 +72,15 @@ app.include_router(disponibilite.router, prefix="/api/v1")
 app.include_router(localisation.router, prefix="/api/v1")
 app.include_router(ia.router, prefix="/api/v1")
 app.include_router(transport.router, prefix="/api/v1")
-
+app.include_router(ia_assistant.router, prefix="/api/v1")
+app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(medicaments.router, prefix="/api/v1")
+app.include_router(commandes.router, prefix="/api/v1")
+app.include_router(hopital_chambres.router, prefix="/api/v1")
+app.include_router(avis.router, prefix="/api/v1")
+app.include_router(specialites.router, prefix="/api/v1")  
+app.include_router(ordonnances.router, prefix="/api/v1")
+app.include_router(ordonnance_ia.router, prefix="/api/v1")
 @app.get("/")
 async def root():
     return {

@@ -1,7 +1,9 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
-from geoalchemy2.functions import ST_SetSRID, ST_MakePoint, ST_Distance, ST_Transform
+from geoalchemy2.functions import ST_SetSRID, ST_MakePoint, ST_AsText
 
 from ...core.database import get_db
 from ...core.dependencies import require_chauffeur, require_admin
@@ -12,6 +14,7 @@ from ...models.vehicule import Vehicule
 from ...schemas.chauffeur import ChauffeurCreate, ChauffeurResponse, ChauffeurUpdate
 
 router = APIRouter(prefix="/chauffeurs", tags=["Chauffeurs"])
+
 
 @router.post("/register", response_model=ChauffeurResponse)
 def register_chauffeur(
@@ -29,6 +32,13 @@ def register_chauffeur(
             detail="Email ou téléphone déjà utilisé"
         )
     
+    vehicle_type = chauffeur_data.vehicle_type.upper()
+    if vehicle_type not in ['TAXI', 'AMBULANCE']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="vehicle_type doit être 'TAXI' ou 'AMBULANCE'"
+        )
+    
     user = User(
         nom=chauffeur_data.user.nom,
         prenom=chauffeur_data.user.prenom,
@@ -43,7 +53,7 @@ def register_chauffeur(
     
     chauffeur = Chauffeur(
         user_id=user.id,
-        vehicle_type=chauffeur_data.vehicle_type,
+        vehicle_type=vehicle_type,
         license_number=chauffeur_data.license_number
     )
     
@@ -56,19 +66,91 @@ def register_chauffeur(
     db.add(chauffeur)
     db.flush()
     
-    # Créer le véhicule
     vehicule = Vehicule(
         chauffeur_id=chauffeur.id,
         immatriculation=chauffeur_data.immatriculation,
         modele=chauffeur_data.modele,
         couleur=chauffeur_data.couleur,
-        type=chauffeur_data.vehicle_type
+        type=vehicle_type,
+        is_active=True
     )
     db.add(vehicule)
     
     db.commit()
     db.refresh(chauffeur)
-    return chauffeur
+    db.refresh(vehicule)
+    
+    return {
+        "id": chauffeur.id,
+        "user_id": chauffeur.user_id,
+        "vehicle_type": chauffeur.vehicle_type,
+        "license_number": chauffeur.license_number,
+        "latitude": chauffeur_data.latitude,
+        "longitude": chauffeur_data.longitude,
+        "is_available": chauffeur.is_available,
+        "user": user,
+        "vehicule": vehicule
+    }
+
+
+# ✅ NOUVELLE ROUTE - LISTE DES CHAUFFEURS
+@router.get("/", response_model=List[ChauffeurResponse])
+def get_chauffeurs(
+    vehicle_type: Optional[str] = None,
+    available: Optional[bool] = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Obtenir la liste des chauffeurs approuvés avec coordonnées GPS"""
+
+    query = (
+        db.query(
+            Chauffeur,
+            func.ST_Y(Chauffeur.localisation).label("latitude"),
+            func.ST_X(Chauffeur.localisation).label("longitude")
+        )
+        .join(User, Chauffeur.user_id == User.id)
+        .filter(User.status == UserStatus.APPROVED)
+    )
+
+    if vehicle_type is not None:
+        query = query.filter(
+            Chauffeur.vehicle_type == vehicle_type.upper()
+        )
+
+    if available is not None:
+        query = query.filter(
+            Chauffeur.is_available == available
+        )
+
+    rows = query.offset(offset).limit(limit).all()
+
+    result = []
+
+    for chauffeur, latitude, longitude in rows:
+        vehicule = db.query(Vehicule).filter(
+            Vehicule.chauffeur_id == chauffeur.id
+        ).first()
+
+        result.append(
+            ChauffeurResponse(
+                id=chauffeur.id,
+                user_id=chauffeur.user_id,
+                vehicle_type=chauffeur.vehicle_type,
+                license_number=chauffeur.license_number,
+                is_available=chauffeur.is_available,
+
+                latitude=float(latitude) if latitude is not None else None,
+                longitude=float(longitude) if longitude is not None else None,
+
+                user=chauffeur.user,
+                vehicule=vehicule
+            )
+        )
+
+    return result
+
 
 @router.get("/me", response_model=ChauffeurResponse)
 def get_my_chauffeur_profile(
@@ -82,7 +164,30 @@ def get_my_chauffeur_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profil chauffeur non trouvé"
         )
-    return chauffeur
+    
+    vehicule = db.query(Vehicule).filter(Vehicule.chauffeur_id == chauffeur.id).first()
+    
+    latitude = None
+    longitude = None
+    if chauffeur.localisation:
+        point_text = db.execute(func.ST_AsText(chauffeur.localisation)).scalar()
+        if point_text:
+            coords = point_text.replace("POINT(", "").replace(")", "").split()
+            longitude = float(coords[0])
+            latitude = float(coords[1])
+    
+    return {
+        "id": chauffeur.id,
+        "user_id": chauffeur.user_id,
+        "vehicle_type": chauffeur.vehicle_type,
+        "license_number": chauffeur.license_number,
+        "latitude": latitude,
+        "longitude": longitude,
+        "is_available": chauffeur.is_available,
+        "user": chauffeur.user,
+        "vehicule": vehicule
+    }
+
 
 @router.put("/me", response_model=ChauffeurResponse)
 def update_my_chauffeur_profile(
@@ -109,7 +214,30 @@ def update_my_chauffeur_profile(
     
     db.commit()
     db.refresh(chauffeur)
-    return chauffeur
+    
+    vehicule = db.query(Vehicule).filter(Vehicule.chauffeur_id == chauffeur.id).first()
+    
+    latitude = None
+    longitude = None
+    if chauffeur.localisation:
+        point_text = db.execute(func.ST_AsText(chauffeur.localisation)).scalar()
+        if point_text:
+            coords = point_text.replace("POINT(", "").replace(")", "").split()
+            longitude = float(coords[0])
+            latitude = float(coords[1])
+    
+    return {
+        "id": chauffeur.id,
+        "user_id": chauffeur.user_id,
+        "vehicle_type": chauffeur.vehicle_type,
+        "license_number": chauffeur.license_number,
+        "latitude": latitude,
+        "longitude": longitude,
+        "is_available": chauffeur.is_available,
+        "user": chauffeur.user,
+        "vehicule": vehicule
+    }
+
 
 @router.patch("/me/availability")
 def toggle_my_availability(

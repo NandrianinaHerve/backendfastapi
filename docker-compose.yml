@@ -27,9 +27,17 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/sante_fianarantsoa
       REDIS_URL: redis://redis:6379/0
-    volumes:
-      - ./app:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+
+  frontend:
+    build:
+      context: ../sante-fianarantsoa
+      args:
+        VITE_API_URL: /api/v1
+    ports:
+      - "3000:80"
+    depends_on:
+      - app
 
 volumes:
   postgres_data:
